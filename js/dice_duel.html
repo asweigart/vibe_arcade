@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DICE DUEL — Push Your Luck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bungee&family=JetBrains+Mono:wght@400;700&family=Fredoka:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a12;
+    --surface: #14142a;
+    --p1: #ff4d6a;
+    --p1-glow: #ff4d6a66;
+    --p2: #4dffb4;
+    --p2-glow: #4dffb466;
+    --p3: #4d9eff;
+    --p3-glow: #4d9eff66;
+    --gold: #ffd700;
+    --danger: #ff2244;
+    --text: #e8e8f0;
+    --muted: #6a6a8a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fredoka', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .grain {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  header {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 24px 0 8px;
+  }
+
+  h1 {
+    font-family: 'Bungee', cursive;
+    font-size: clamp(28px, 5vw, 48px);
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, var(--p1), var(--gold), var(--p2), var(--p3));
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 4s ease infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Timer */
+  .timer-row {
+    position: relative; z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 12px 0 8px;
+  }
+
+  .timer-bar-track {
+    width: min(400px, 60vw);
+    height: 10px;
+    background: var(--surface);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid #2a2a4a;
+  }
+
+  .timer-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--p1), var(--gold), var(--p2));
+    border-radius: 5px;
+    transition: width 0.15s linear;
+  }
+
+  .timer-text {
+    font-family: 'Bungee', cursive;
+    font-size: clamp(20px, 3.5vw, 32px);
+    color: var(--gold);
+    min-width: 56px;
+    text-align: center;
+  }
+
+  .timer-text.danger { color: var(--danger); animation: pulse 0.5s ease infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* Game area */
+  .arena {
+    position: relative; z-index: 1;
+    display: flex;
+    gap: clamp(12px, 2vw, 24px);
+    padding: 12px;
+    flex: 1;
+    align-items: stretch;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  .player-card {
+    flex: 1;
+    background: var(--surface);
+    border: 2px solid #2a2a4a;
+    border-radius: 16px;
+    padding: clamp(12px, 2vw, 24px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .player-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .player-card[data-player="1"] { --pc: var(--p1); --pg: var(--p1-glow); }
+  .player-card[data-player="2"] { --pc: var(--p2); --pg: var(--p2-glow); }
+  .player-card[data-player="3"] { --pc: var(--p3); --pg: var(--p3-glow); }
+
+  .player-card.active { border-color: var(--pc); box-shadow: 0 0 30px var(--pg); }
+  .player-card.active::before { opacity: 0.03; background: var(--pc); }
+
+  .player-card.bust { border-color: var(--danger); animation: shake 0.4s ease; }
+  .player-card.bust::after {
+    content: 'BUST!';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    font-family: 'Bungee', cursive;
+    font-size: 40px;
+    color: var(--danger);
+    text-shadow: 0 0 20px var(--danger);
+    z-index: 10;
+    animation: bustIn 0.4s ease;
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  @keyframes bustIn {
+    0% { transform: translate(-50%, -50%) rotate(-12deg) scale(3); opacity: 0; }
+    100% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); opacity: 1; }
+  }
+
+  .player-name {
+    font-family: 'Bungee', cursive;
+    font-size: clamp(14px, 2vw, 20px);
+    color: var(--pc);
+    letter-spacing: 2px;
+  }
+
+  .keys-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .key-badge {
+    display: inline-block;
+    background: #2a2a4a;
+    border: 1px solid #3a3a5a;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: var(--text);
+    margin: 0 1px;
+  }
+
+  .score-display {
+    font-family: 'Bungee', cursive;
+    font-size: clamp(36px, 6vw, 64px);
+    color: var(--text);
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .score-display.highlight {
+    color: var(--gold);
+    animation: scoreUp 0.3s ease;
+  }
+
+  @keyframes scoreUp {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* Dice */
+  .dice-area {
+    width: clamp(52px, 9vw, 80px);
+    height: clamp(52px, 9vw, 80px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .die {
+    width: 100%;
+    height: 100%;
+    background: var(--surface);
+    border: 2px solid #3a3a5a;
+    border-radius: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 15%;
+    gap: 2px;
+    transition: transform 0.15s, border-color 0.2s;
+  }
+
+  .die.rolling { animation: diceRoll 0.15s ease; border-color: var(--pc); }
+  @keyframes diceRoll {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(15deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
+  }
+
+  .pip {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--text);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .pip.on { opacity: 1; }
+
+  /* History */
+  .history {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-height: 24px;
+    margin-top: 4px;
+  }
+
+  .history-pip {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    background: #1e1e3a;
+    border: 1px solid #3a3a5a;
+    color: var(--text);
+    transition: all 0.2s;
+  }
+
+  .history-pip.danger-count {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: #2a1020;
+  }
+
+  .tally-row {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .tally-item { padding: 1px 5px; border-radius: 3px; background: #1a1a2e; }
+  .tally-item.warn { color: #ffaa00; background: #2a2010; }
+  .tally-item.crit { color: var(--danger); background: #2a1020; }
+
+  /* Screens */
+  .screen-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    gap: 20px;
+    transition: opacity 0.4s;
+  }
+
+  .screen-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .start-prompt {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    color: var(--gold);
+    animation: blink 1.2s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .rules-box {
+    max-width: 500px;
+    text-align: center;
+    line-height: 1.7;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 0 20px;
+  }
+
+  .rules-box strong { color: var(--text); }
+  .rules-box .warn-text { color: var(--danger); }
+
+  .winner-text {
+    font-family: 'Bungee', cursive;
+    font-size: clamp(24px, 5vw, 48px);
+    text-align: center;
+  }
+
+  .final-scores {
+    display: flex; gap: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+  }
+
+  .final-score { text-align: center; }
+  .final-score .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  .crown { font-size: 28px; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <h1>DICE DUEL</h1>
+  <div class="subtitle">Push Your Luck</div>
+</header>
+
+<div class="timer-row">
+  <div class="timer-text" id="timer">10.0</div>
+  <div class="timer-bar-track">
+    <div class="timer-bar-fill" id="timerBar" style="width:100%"></div>
+  </div>
+</div>
+
+<div class="arena" id="arena">
+  <!-- Player cards generated by JS -->
+</div>
+
+<!-- Start Screen -->
+<div class="screen-overlay" id="startScreen">
+  <h1 style="font-family:'Bungee',cursive;font-size:clamp(32px,6vw,56px);background:linear-gradient(135deg,var(--p1),var(--gold),var(--p2),var(--p3));background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 4s ease infinite;">DICE DUEL</h1>
+  <div class="rules-box">
+    Roll dice to score points in <strong>10 seconds</strong>!<br>
+    Each roll adds the die value to your score.<br>
+    <span class="warn-text"><strong>But if any number appears 3 times — you BUST and lose ALL points!</strong></span><br><br>
+    <strong style="color:var(--p1)">P1</strong>: <span class="key-badge">S</span> to roll &nbsp;
+    <strong style="color:var(--p2)">P2</strong>: <span class="key-badge">↓</span> to roll &nbsp;
+    <strong style="color:var(--p3)">P3</strong>: <span class="key-badge">K</span> to roll
+  </div>
+  <div class="start-prompt">— Press SPACE to start —</div>
+</div>
+
+<!-- End Screen -->
+<div class="screen-overlay hidden" id="endScreen">
+  <div class="winner-text" id="winnerText"></div>
+  <div class="final-scores" id="finalScores"></div>
+  <div class="start-prompt">— Press SPACE to play again —</div>
+</div>
+
+<script>
+const GAME_DURATION = 10;
+const BUST_COUNT = 3;
+const PLAYER_CONFIG = [
+  { name: 'Player 1', key: 'KeyS', keyLabel: 'S', color: 'var(--p1)' },
+  { name: 'Player 2', key: 'ArrowDown', keyLabel: '↓', color: 'var(--p2)' },
+  { name: 'Player 3', key: 'KeyK', keyLabel: 'K', color: 'var(--p3)' },
+];
+
+// Pip positions for dice faces (3x3 grid, indices 0-8)
+const DICE_PIPS = {
+  1: [4],
+  2: [2, 6],
+  3: [2, 4, 6],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
+
+let players = [];
+let gameState = 'waiting'; // waiting | playing | ended
+let timerStart = 0;
+let animFrame = null;
+
+function createPlayerCards() {
+  const arena = document.getElementById('arena');
+  arena.innerHTML = '';
+  players = PLAYER_CONFIG.map((cfg, i) => {
+    const card = document.createElement('div');
+    card.className = 'player-card';
+    card.dataset.player = i + 1;
+    card.innerHTML = `
+      <div class="player-name">${cfg.name}</div>
+      <div class="keys-hint">Press <span class="key-badge">${cfg.keyLabel}</span> to roll</div>
+      <div class="score-display" id="score${i}">0</div>
+      <div class="dice-area">
+        <div class="die" id="die${i}">
+          ${Array.from({length: 9}, (_, j) => `<div class="pip" id="pip${i}_${j}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="history" id="history${i}"></div>
+      <div class="tally-row" id="tally${i}"></div>
+    `;
+    arena.appendChild(card);
+    return {
+      ...cfg,
+      index: i,
+      score: 0,
+      rolls: [],
+      counts: [0,0,0,0,0,0,0], // index 1-6
+      busted: false,
+      card,
+      cooldown: false,
+    };
+  });
+}
+
+function setDie(playerIdx, value) {
+  const pips = DICE_PIPS[value] || [];
+  for (let j = 0; j < 9; j++) {
+    document.getElementById(`pip${playerIdx}_${j}`).className = pips.includes(j) ? 'pip on' : 'pip';
+  }
+}
+
+function clearDie(playerIdx) {
+  for (let j = 0; j < 9; j++) {
+    document.getElementById(`pip${playerIdx}_${j}`).className = 'pip';
+  }
+}
+
+function updateHistory(p) {
+  const el = document.getElementById(`history${p.index}`);
+  el.innerHTML = p.rolls.map(v => {
+    const cnt = p.rolls.filter(r => r === v).length;
+    const cls = cnt >= BUST_COUNT ? 'danger-count' : (cnt === BUST_COUNT - 1 ? '' : '');
+    return `<div class="history-pip${cnt >= BUST_COUNT - 1 ? ' danger-count' : ''}">${v}</div>`;
+  }).join('');
+}
+
+function updateTally(p) {
+  const el = document.getElementById(`tally${p.index}`);
+  let html = '';
+  for (let v = 1; v <= 6; v++) {
+    if (p.counts[v] > 0) {
+      const cls = p.counts[v] >= BUST_COUNT ? 'crit' : (p.counts[v] === BUST_COUNT - 1 ? 'warn' : '');
+      html += `<span class="tally-item ${cls}">${v}×${p.counts[v]}</span>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function roll(p) {
+  if (gameState !== 'playing' || p.busted || p.cooldown) return;
+
+  p.cooldown = true;
+  setTimeout(() => { p.cooldown = false; }, 180);
+
+  const value = Math.floor(Math.random() * 6) + 1;
+  p.rolls.push(value);
+  p.counts[value]++;
+
+  // Animate die
+  const dieEl = document.getElementById(`die${p.index}`);
+  dieEl.classList.remove('rolling');
+  void dieEl.offsetWidth;
+  dieEl.classList.add('rolling');
+  setDie(p.index, value);
+
+  // Check bust
+  if (p.counts[value] >= BUST_COUNT) {
+    p.score = 0;
+    p.busted = true;
+    const scoreEl = document.getElementById(`score${p.index}`);
+    scoreEl.textContent = '0';
+    scoreEl.classList.remove('highlight');
+    p.card.classList.add('bust');
+    p.card.classList.remove('active');
+  } else {
+    p.score += value;
+    const scoreEl = document.getElementById(`score${p.index}`);
+    scoreEl.textContent = p.score;
+    scoreEl.classList.remove('highlight');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('highlight');
+    p.card.classList.add('active');
+    setTimeout(() => p.card.classList.remove('active'), 300);
+  }
+
+  updateHistory(p);
+  updateTally(p);
+}
+
+function startGame() {
+  createPlayerCards();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  gameState = 'playing';
+  timerStart = performance.now();
+  tick();
+}
+
+function tick() {
+  const elapsed = (performance.now() - timerStart) / 1000;
+  const remaining = Math.max(0, GAME_DURATION - elapsed);
+  const timerEl = document.getElementById('timer');
+  const barEl = document.getElementById('timerBar');
+
+  timerEl.textContent = remaining.toFixed(1);
+  barEl.style.width = (remaining / GAME_DURATION * 100) + '%';
+
+  if (remaining <= 3) timerEl.classList.add('danger');
+  else timerEl.classList.remove('danger');
+
+  if (remaining <= 0) {
+    endGame();
+    return;
+  }
+
+  animFrame = requestAnimationFrame(tick);
+}
+
+function endGame() {
+  gameState = 'ended';
+  if (animFrame) cancelAnimationFrame(animFrame);
+
+  const maxScore = Math.max(...players.map(p => p.score));
+  const winners = players.filter(p => p.score === maxScore);
+
+  const winnerText = document.getElementById('winnerText');
+  if (maxScore === 0) {
+    winnerText.innerHTML = `<span style="color:var(--danger)">EVERYONE BUSTED!</span>`;
+  } else if (winners.length > 1) {
+    winnerText.innerHTML = `<span style="color:var(--gold)">IT'S A TIE!</span>`;
+  } else {
+    winnerText.innerHTML = `<span class="crown">👑</span><br><span style="color:${winners[0].color}">${winners[0].name} WINS!</span>`;
+  }
+
+  const scoresEl = document.getElementById('finalScores');
+  scoresEl.innerHTML = players.map(p => `
+    <div class="final-score">
+      <div class="label" style="color:${p.color}">${p.name}</div>
+      <div style="color:${p.busted ? 'var(--danger)' : 'var(--text)'}">${p.busted ? 'BUST' : p.score}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+// Input
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gameState === 'waiting' || gameState === 'ended') startGame();
+    return;
+  }
+
+  if (gameState !== 'playing') return;
+
+  for (const p of players) {
+    if (e.code === p.key) {
+      e.preventDefault();
+      roll(p);
+      return;
+    }
+  }
+});
+
+// Init
+createPlayerCards();
+</script>
+</body>
+</html>

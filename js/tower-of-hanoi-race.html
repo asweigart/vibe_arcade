@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tower of Hanoi — Two Player Race</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@300;500;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --text: #e0e0e8;
+    --dim: #5a5a72;
+    --p1-primary: #ff6b6b;
+    --p1-glow: #ff6b6b44;
+    --p1-disk1: #ff6b6b;
+    --p1-disk2: #ff9f43;
+    --p1-disk3: #feca57;
+    --p1-disk4: #ff6348;
+    --p2-primary: #48dbfb;
+    --p2-glow: #48dbfb44;
+    --p2-disk1: #48dbfb;
+    --p2-disk2: #0abde3;
+    --p2-disk3: #45e6b0;
+    --p2-disk4: #7c5cfc;
+    --peg: #2a2a3e;
+    --peg-top: #3a3a52;
+    --win-gold: #ffd700;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .scanline {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 100;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+  }
+
+  header {
+    text-align: center;
+    padding: 18px 0 10px;
+    position: relative;
+  }
+
+  header h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--p1-primary), #fff 40%, #fff 60%, var(--p2-primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+
+  header .subtitle {
+    font-size: 12px;
+    color: var(--dim);
+    margin-top: 6px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+
+  .arena {
+    display: flex;
+    width: 100%;
+    max-width: 1200px;
+    flex: 1;
+    gap: 0;
+    position: relative;
+  }
+
+  .divider {
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
+    position: relative;
+    z-index: 2;
+  }
+
+  .divider::after {
+    content: 'VS';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    background: var(--bg);
+    padding: 8px 4px;
+    letter-spacing: 2px;
+  }
+
+  .player-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 16px 12px;
+    position: relative;
+  }
+
+  .player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .player-name {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .p1 .player-name { color: var(--p1-primary); }
+  .p2 .player-name { color: var(--p2-primary); }
+
+  .timer {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 16px;
+    color: var(--text);
+    letter-spacing: 2px;
+  }
+
+  .moves-display {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  .board {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    height: 260px;
+    margin: 6px 0;
+  }
+
+  .peg-area {
+    position: absolute;
+    bottom: 0;
+    width: 33.33%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .peg-area:nth-child(1) { left: 0; }
+  .peg-area:nth-child(2) { left: 33.33%; }
+  .peg-area:nth-child(3) { left: 66.66%; }
+
+  .peg-rod {
+    position: absolute;
+    bottom: 18px;
+    width: 6px;
+    height: 140px;
+    background: linear-gradient(180deg, var(--peg-top), var(--peg));
+    border-radius: 3px 3px 0 0;
+    z-index: 0;
+  }
+
+  .peg-base {
+    position: absolute;
+    bottom: 10px;
+    width: 80%;
+    height: 10px;
+    background: var(--peg);
+    border-radius: 5px;
+  }
+
+  .peg-label {
+    position: absolute;
+    bottom: -4px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  .disk {
+    position: absolute;
+    height: 26px;
+    border-radius: 6px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: rgba(0,0,0,0.5);
+    transition: left 0.15s ease-out, bottom 0.15s ease-out;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .disk.lifted {
+    filter: brightness(1.3);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  }
+
+  .disk.size-1 { width: 50px; }
+  .disk.size-2 { width: 74px; }
+  .disk.size-3 { width: 98px; }
+  .disk.size-4 { width: 122px; }
+
+  .p1 .disk.size-1 { background: linear-gradient(135deg, var(--p1-disk1), #ff8787); }
+  .p1 .disk.size-2 { background: linear-gradient(135deg, var(--p1-disk2), #ffb86c); }
+  .p1 .disk.size-3 { background: linear-gradient(135deg, var(--p1-disk3), #fff176); }
+  .p1 .disk.size-4 { background: linear-gradient(135deg, var(--p1-disk4), #ff7b5e); }
+
+  .p2 .disk.size-1 { background: linear-gradient(135deg, var(--p2-disk1), #6dd5fa); }
+  .p2 .disk.size-2 { background: linear-gradient(135deg, var(--p2-disk2), #38c7e8); }
+  .p2 .disk.size-3 { background: linear-gradient(135deg, var(--p2-disk3), #66f0c4); }
+  .p2 .disk.size-4 { background: linear-gradient(135deg, var(--p2-disk4), #9578ff); }
+
+  .selected-indicator {
+    position: absolute;
+    bottom: 166px;
+    font-size: 10px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+  }
+
+  .selected-indicator.visible {
+    opacity: 1;
+    animation: bounce 0.6s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+
+  .controls-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+  }
+
+  .key-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 26px;
+    padding: 0 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: 3px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: var(--text);
+    transition: all 0.1s;
+  }
+
+  .key.active {
+    border-bottom-width: 1px;
+    transform: translateY(2px);
+  }
+
+  .p1 .key.active { background: var(--p1-glow); border-color: var(--p1-primary); }
+  .p2 .key.active { background: var(--p2-glow); border-color: var(--p2-primary); }
+
+  .status-bar {
+    height: 24px;
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    letter-spacing: 1px;
+  }
+
+  .p1 .status-bar { color: var(--p1-primary); }
+  .p2 .status-bar { color: var(--p2-primary); }
+
+  .bottom-bar {
+    padding: 8px;
+    text-align: center;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    background: var(--border);
+    transform: translateY(-1px);
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    backdrop-filter: blur(6px);
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay-box {
+    text-align: center;
+    padding: 40px 50px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .overlay-box h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .overlay-box .win-p1 { color: var(--p1-primary); }
+  .overlay-box .win-p2 { color: var(--p2-primary); }
+
+  .overlay-box p {
+    color: var(--dim);
+    font-size: 14px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .countdown {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 48px;
+    color: var(--win-gold);
+    animation: pulse 0.5s ease-in-out;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1.6); opacity: 0; }
+    60% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .trophy { font-size: 40px; margin-bottom: 10px; }
+
+  .error-flash {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: #ff4757;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .error-flash.show {
+    animation: flashError 0.6s ease-out forwards;
+  }
+
+  @keyframes flashError {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -60%); }
+  }
+
+  .confetti-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    overflow: hidden;
+  }
+
+  .confetti {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    top: -10px;
+    animation: fall linear forwards;
+  }
+
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="scanline"></div>
+
+<header>
+  <h1>TOWER OF HANOI</h1>
+  <div class="subtitle">Two Player Race</div>
+</header>
+
+<div class="arena">
+  <div class="player-side p1" id="p1-side">
+    <div class="player-header">
+      <span class="player-name">PLAYER 1</span>
+      <span class="timer" id="p1-timer">00.0</span>
+      <span class="moves-display">MOVES: <span id="p1-moves">0</span></span>
+    </div>
+    <div class="board" id="p1-board"></div>
+    <div class="status-bar" id="p1-status">&nbsp;</div>
+    <div class="controls-bar">
+      <div class="key-hint">
+        <span class="key" id="key-a">A</span><span>Peg 1</span>
+      </div>
+      <div class="key-hint">
+        <span class="key" id="key-s">S</span><span>Peg 2</span>
+      </div>
+      <div class="key-hint">
+        <span class="key" id="key-d">D</span><span>Peg 3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="player-side p2" id="p2-side">
+    <div class="player-header">
+      <span class="player-name">PLAYER 2</span>
+      <span class="timer" id="p2-timer">00.0</span>
+      <span class="moves-display">MOVES: <span id="p2-moves">0</span></span>
+    </div>
+    <div class="board" id="p2-board"></div>
+    <div class="status-bar" id="p2-status">&nbsp;</div>
+    <div class="controls-bar">
+      <div class="key-hint">
+        <span class="key" id="key-left">←</span><span>Peg 1</span>
+      </div>
+      <div class="key-hint">
+        <span class="key" id="key-down">↓</span><span>Peg 2</span>
+      </div>
+      <div class="key-hint">
+        <span class="key" id="key-right">→</span><span>Peg 3</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn" onclick="startGame()">NEW GAME</button>
+</div>
+
+<div class="overlay" id="overlay-start">
+  <div class="overlay-box">
+    <h2>⚔️ READY?</h2>
+    <p>Race to solve the Tower of Hanoi!<br>
+      Move all 4 disks to Peg 2 or Peg 3.<br><br>
+      <strong>P1:</strong> A · S · D &nbsp;&nbsp;|&nbsp;&nbsp; <strong>P2:</strong> ← · ↓ · →<br>
+      <span style="font-size:12px">Press a peg key to pick up, press another to drop.</span>
+    </p>
+    <button class="btn" onclick="startGame()">START</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="overlay-countdown">
+  <div class="overlay-box" style="background:transparent;border:none;">
+    <div class="countdown" id="countdown-num"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="overlay-win">
+  <div class="overlay-box">
+    <div class="trophy">🏆</div>
+    <h2 id="win-title"></h2>
+    <p id="win-details"></p>
+    <button class="btn" onclick="startGame()">REMATCH</button>
+  </div>
+</div>
+
+<div class="confetti-container" id="confetti-container"></div>
+
+<script>
+const NUM_DISKS = 4;
+const PEG_COUNT = 3;
+
+const state = {
+  p1: { pegs: [[], [], []], selected: null, moves: 0, done: false, startTime: 0, elapsed: 0 },
+  p2: { pegs: [[], [], []], selected: null, moves: 0, done: false, startTime: 0, elapsed: 0 },
+  running: false,
+  winner: null,
+  timerRAF: null
+};
+
+function initPegs(player) {
+  player.pegs = [[], [], []];
+  for (let i = NUM_DISKS; i >= 1; i--) player.pegs[0].push(i);
+  player.selected = null;
+  player.moves = 0;
+  player.done = false;
+  player.elapsed = 0;
+}
+
+function renderBoard(playerId) {
+  const p = state[playerId];
+  const board = document.getElementById(`${playerId}-board`);
+  board.innerHTML = '';
+
+  // Pegs
+  for (let i = 0; i < PEG_COUNT; i++) {
+    const area = document.createElement('div');
+    area.className = 'peg-area';
+
+    const rod = document.createElement('div');
+    rod.className = 'peg-rod';
+    area.appendChild(rod);
+
+    const base = document.createElement('div');
+    base.className = 'peg-base';
+    area.appendChild(base);
+
+    const label = document.createElement('div');
+    label.className = 'peg-label';
+    label.textContent = (i + 1);
+    area.appendChild(label);
+
+    // Selection indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'selected-indicator';
+    indicator.textContent = '▼';
+    indicator.style.color = playerId === 'p1' ? 'var(--p1-primary)' : 'var(--p2-primary)';
+    if (p.selected === i) indicator.classList.add('visible');
+    area.appendChild(indicator);
+
+    board.appendChild(area);
+  }
+
+  // Disks
+  const boardRect = { width: board.offsetWidth || 480, height: 260 };
+  const pegWidth = boardRect.width / 3;
+
+  for (let pegIdx = 0; pegIdx < PEG_COUNT; pegIdx++) {
+    const peg = p.pegs[pegIdx];
+    for (let diskPos = 0; diskPos < peg.length; diskPos++) {
+      const size = peg[diskPos];
+      const disk = document.createElement('div');
+      disk.className = `disk size-${size}`;
+
+      const diskWidths = { 1: 50, 2: 74, 3: 98, 4: 122 };
+      const dw = diskWidths[size];
+      const centerX = pegWidth * pegIdx + pegWidth / 2;
+      const bottomY = 20 + diskPos * 28;
+
+      disk.style.left = (centerX - dw / 2) + 'px';
+      disk.style.bottom = bottomY + 'px';
+
+      if (p.selected === pegIdx && diskPos === peg.length - 1) {
+        disk.classList.add('lifted');
+        disk.style.bottom = '200px';
+      }
+
+      board.appendChild(disk);
+    }
+  }
+
+  // Error flash container
+  const existingError = board.querySelector('.error-flash');
+  if (!existingError) {
+    const errorEl = document.createElement('div');
+    errorEl.className = 'error-flash';
+    errorEl.id = `${playerId}-error`;
+    errorEl.textContent = 'INVALID!';
+    board.appendChild(errorEl);
+  }
+}
+
+function flashError(playerId) {
+  const el = document.getElementById(`${playerId}-error`);
+  if (!el) return;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function updateStatus(playerId, text) {
+  document.getElementById(`${playerId}-status`).textContent = text;
+}
+
+function updateMoves(playerId) {
+  document.getElementById(`${playerId}-moves`).textContent = state[playerId].moves;
+}
+
+function formatTime(ms) {
+  const secs = ms / 1000;
+  if (secs < 60) return secs.toFixed(1).padStart(4, '0');
+  const m = Math.floor(secs / 60);
+  const s = (secs % 60).toFixed(1).padStart(4, '0');
+  return `${m}:${s}`;
+}
+
+function updateTimers() {
+  if (!state.running) return;
+  const now = performance.now();
+
+  ['p1', 'p2'].forEach(id => {
+    const p = state[id];
+    if (!p.done) {
+      p.elapsed = now - p.startTime;
+    }
+    document.getElementById(`${id}-timer`).textContent = formatTime(p.elapsed);
+  });
+
+  state.timerRAF = requestAnimationFrame(updateTimers);
+}
+
+function checkWin(playerId) {
+  const p = state[playerId];
+  if (p.pegs[1].length === NUM_DISKS || p.pegs[2].length === NUM_DISKS) {
+    p.done = true;
+    if (!state.winner) {
+      state.winner = playerId;
+      endGame(playerId);
+    }
+  }
+}
+
+function handlePegSelect(playerId, pegIndex) {
+  if (!state.running || state[playerId].done) return;
+  const p = state[playerId];
+
+  if (p.selected === null) {
+    // Pick up from peg
+    if (p.pegs[pegIndex].length === 0) {
+      flashError(playerId);
+      updateStatus(playerId, 'Empty peg!');
+      setTimeout(() => { if (state.running) updateStatus(playerId, ''); }, 800);
+      return;
+    }
+    p.selected = pegIndex;
+    const topDisk = p.pegs[pegIndex][p.pegs[pegIndex].length - 1];
+    updateStatus(playerId, `Picked disk ${topDisk} from peg ${pegIndex + 1}`);
+    renderBoard(playerId);
+  } else {
+    // Drop onto peg
+    if (p.selected === pegIndex) {
+      // Put it back down
+      p.selected = null;
+      updateStatus(playerId, 'Cancelled');
+      setTimeout(() => { if (state.running) updateStatus(playerId, ''); }, 500);
+      renderBoard(playerId);
+      return;
+    }
+
+    const fromPeg = p.pegs[p.selected];
+    const toPeg = p.pegs[pegIndex];
+    const disk = fromPeg[fromPeg.length - 1];
+
+    if (toPeg.length > 0 && toPeg[toPeg.length - 1] < disk) {
+      flashError(playerId);
+      updateStatus(playerId, "Can't place larger on smaller!");
+      p.selected = null;
+      renderBoard(playerId);
+      setTimeout(() => { if (state.running) updateStatus(playerId, ''); }, 800);
+      return;
+    }
+
+    fromPeg.pop();
+    toPeg.push(disk);
+    p.moves++;
+    p.selected = null;
+    updateMoves(playerId);
+    updateStatus(playerId, `Moved disk ${disk} → peg ${pegIndex + 1}`);
+    renderBoard(playerId);
+    setTimeout(() => { if (state.running && !p.done) updateStatus(playerId, ''); }, 600);
+    checkWin(playerId);
+  }
+}
+
+function endGame(winnerId) {
+  state.running = false;
+  cancelAnimationFrame(state.timerRAF);
+
+  const w = state[winnerId];
+  const loserId = winnerId === 'p1' ? 'p2' : 'p1';
+  const loser = state[loserId];
+
+  const title = document.getElementById('win-title');
+  title.textContent = winnerId === 'p1' ? 'PLAYER 1 WINS!' : 'PLAYER 2 WINS!';
+  title.className = winnerId === 'p1' ? 'win-p1' : 'win-p2';
+
+  const details = document.getElementById('win-details');
+  details.innerHTML = `Time: ${formatTime(w.elapsed)} &nbsp;·&nbsp; Moves: ${w.moves}<br>
+    <span style="font-size:11px;color:var(--dim)">(Optimal: 15 moves)</span>`;
+
+  document.getElementById('overlay-win').classList.remove('hidden');
+  spawnConfetti(winnerId);
+}
+
+function spawnConfetti(winnerId) {
+  const container = document.getElementById('confetti-container');
+  container.innerHTML = '';
+  const colors = winnerId === 'p1'
+    ? ['#ff6b6b', '#ff9f43', '#feca57', '#ff6348', '#fff']
+    : ['#48dbfb', '#0abde3', '#45e6b0', '#7c5cfc', '#fff'];
+
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = Math.random() * 100 + '%';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.width = (4 + Math.random() * 8) + 'px';
+    el.style.height = (4 + Math.random() * 8) + 'px';
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+    el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    el.style.animationDelay = (Math.random() * 0.8) + 's';
+    el.style.opacity = 0.7 + Math.random() * 0.3;
+    container.appendChild(el);
+  }
+  setTimeout(() => container.innerHTML = '', 4000);
+}
+
+function startGame() {
+  document.getElementById('overlay-start').classList.add('hidden');
+  document.getElementById('overlay-win').classList.add('hidden');
+
+  initPegs(state.p1);
+  initPegs(state.p2);
+  state.winner = null;
+  state.running = false;
+
+  renderBoard('p1');
+  renderBoard('p2');
+  updateMoves('p1');
+  updateMoves('p2');
+  document.getElementById('p1-timer').textContent = '00.0';
+  document.getElementById('p2-timer').textContent = '00.0';
+  updateStatus('p1', '');
+  updateStatus('p2', '');
+
+  // Countdown
+  const cdOverlay = document.getElementById('overlay-countdown');
+  const cdNum = document.getElementById('countdown-num');
+  cdOverlay.classList.remove('hidden');
+
+  let count = 3;
+  cdNum.textContent = count;
+
+  const interval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      cdNum.textContent = count;
+      cdNum.style.animation = 'none';
+      void cdNum.offsetWidth;
+      cdNum.style.animation = 'pulse 0.5s ease-in-out';
+    } else if (count === 0) {
+      cdNum.textContent = 'GO!';
+      cdNum.style.color = '#66ff66';
+      cdNum.style.animation = 'none';
+      void cdNum.offsetWidth;
+      cdNum.style.animation = 'pulse 0.5s ease-in-out';
+    } else {
+      clearInterval(interval);
+      cdOverlay.classList.add('hidden');
+      cdNum.style.color = 'var(--win-gold)';
+      const now = performance.now();
+      state.p1.startTime = now;
+      state.p2.startTime = now;
+      state.running = true;
+      updateTimers();
+    }
+  }, 700);
+}
+
+// Key mappings
+const KEY_MAP = {
+  'a': { player: 'p1', peg: 0 },
+  's': { player: 'p1', peg: 1 },
+  'd': { player: 'p1', peg: 2 },
+  'ArrowLeft':  { player: 'p2', peg: 0 },
+  'ArrowDown':  { player: 'p2', peg: 1 },
+  'ArrowRight': { player: 'p2', peg: 2 },
+};
+
+const KEY_ELEMENTS = {
+  'a': 'key-a', 's': 'key-s', 'd': 'key-d',
+  'ArrowLeft': 'key-left', 'ArrowDown': 'key-down', 'ArrowRight': 'key-right',
+};
+
+document.addEventListener('keydown', (e) => {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const mapping = KEY_MAP[key];
+  if (!mapping) return;
+
+  e.preventDefault();
+
+  const el = document.getElementById(KEY_ELEMENTS[key]);
+  if (el) el.classList.add('active');
+
+  handlePegSelect(mapping.player, mapping.peg);
+});
+
+document.addEventListener('keyup', (e) => {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const el = document.getElementById(KEY_ELEMENTS[key]);
+  if (el) el.classList.remove('active');
+});
+
+// Initial render
+renderBoard('p1');
+renderBoard('p2');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUMO CLASH</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DM+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #1a1017;
+    --ring: #2a1f25;
+    --ring-edge: #e8443a;
+    --p1: #ff6b4a;
+    --p1-glow: #ff6b4a88;
+    --p2: #4ae4ff;
+    --p2-glow: #4ae4ff88;
+    --p3: #c8ff4a;
+    --p3-glow: #c8ff4a88;
+    --text: #f0e6e8;
+    --text-dim: #7a6870;
+    --gold: #ffd700;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 12px 20px;
+    width: 100%;
+    z-index: 10;
+  }
+
+  .title {
+    font-family: 'Dela Gothic One', sans-serif;
+    font-size: 28px;
+    letter-spacing: 6px;
+    background: linear-gradient(135deg, var(--ring-edge), #ff9944);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+
+  .timer {
+    font-family: 'Dela Gothic One', sans-serif;
+    font-size: 26px;
+    color: var(--text);
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .timer.warning { color: var(--ring-edge); animation: pulse 0.5s ease infinite alternate; }
+
+  @keyframes pulse { to { opacity: 0.5; } }
+
+  .scoreboard {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .score-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .score-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .score-val { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; }
+
+  #game-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 16, 23, 0.92);
+    z-index: 20;
+    backdrop-filter: blur(8px);
+  }
+
+  #overlay.hidden { display: none; }
+
+  .overlay-title {
+    font-family: 'Dela Gothic One', sans-serif;
+    font-size: 52px;
+    letter-spacing: 8px;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--ring-edge), #ff9944, var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .overlay-sub {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 36px;
+    letter-spacing: 2px;
+  }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 32px;
+    min-width: 260px;
+  }
+
+  .result-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .result-row.winner {
+    background: rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.2);
+  }
+
+  .result-rank {
+    font-family: 'Dela Gothic One', sans-serif;
+    font-size: 20px;
+    width: 30px;
+  }
+
+  .result-name { flex: 1; font-size: 14px; }
+  .result-score { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; }
+
+  .crown { font-size: 20px; }
+
+  .controls-grid {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 32px;
+  }
+
+  .control-block {
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .control-label {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  .control-keys {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+  }
+
+  .control-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .start-btn {
+    font-family: 'Dela Gothic One', sans-serif;
+    font-size: 18px;
+    letter-spacing: 4px;
+    padding: 14px 48px;
+    border: 2px solid var(--ring-edge);
+    background: transparent;
+    color: var(--ring-edge);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .start-btn:hover {
+    background: var(--ring-edge);
+    color: var(--bg);
+  }
+
+  #footer {
+    padding: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="title">SUMO CLASH</div>
+  <div class="timer" id="timer">30</div>
+  <div class="scoreboard">
+    <div class="score-item">
+      <div class="score-dot" style="background:var(--p1)"></div>
+      <span>P1</span>
+      <span class="score-val" id="score1" style="color:var(--p1)">0</span>
+    </div>
+    <div class="score-item">
+      <div class="score-dot" style="background:var(--p2)"></div>
+      <span>P2</span>
+      <span class="score-val" id="score2" style="color:var(--p2)">0</span>
+    </div>
+    <div class="score-item">
+      <div class="score-dot" style="background:var(--p3)"></div>
+      <span>P3</span>
+      <span class="score-val" id="score3" style="color:var(--p3)">0</span>
+    </div>
+  </div>
+</div>
+
+<div id="game-area">
+  <canvas id="canvas"></canvas>
+  <div id="overlay">
+    <div class="overlay-title">SUMO CLASH</div>
+    <div class="overlay-sub">3-PLAYER LOCAL BATTLE</div>
+    <div class="controls-grid">
+      <div class="control-block">
+        <div class="control-label" style="color:var(--p1)">PLAYER 1</div>
+        <div class="control-keys">W A S D</div>
+        <div class="control-hint">A/D turn · W charge · S nothing</div>
+      </div>
+      <div class="control-block">
+        <div class="control-label" style="color:var(--p2)">PLAYER 2</div>
+        <div class="control-keys">↑ ← ↓ →</div>
+        <div class="control-hint">←/→ turn · ↑ charge · ↓ nothing</div>
+      </div>
+      <div class="control-block">
+        <div class="control-label" style="color:var(--p3)">PLAYER 3</div>
+        <div class="control-keys">I J K L</div>
+        <div class="control-hint">J/L turn · I charge · K nothing</div>
+      </div>
+    </div>
+    <div id="results" class="results" style="display:none"></div>
+    <button class="start-btn" id="startBtn">START</button>
+  </div>
+</div>
+
+<div id="footer">Hold charge to power up · Release to dash · Knock opponents off the ring!</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const timerEl = document.getElementById('timer');
+const startBtn = document.getElementById('startBtn');
+const resultsDiv = document.getElementById('results');
+
+const COLORS = {
+  p1: '#ff6b4a', p1g: 'rgba(255,107,74,',
+  p2: '#4ae4ff', p2g: 'rgba(74,228,255,',
+  p3: '#c8ff4a', p3g: 'rgba(200,255,74,'
+};
+
+let W, H, CX, CY, PLATFORM_R, PLAYER_R;
+let gameRunning = false;
+let roundTime = 30;
+let timerInterval = null;
+let animFrame = null;
+let keys = {};
+
+function resize() {
+  const area = document.getElementById('game-area');
+  W = area.clientWidth;
+  H = area.clientHeight;
+  canvas.width = W;
+  canvas.height = H;
+  CX = W / 2;
+  CY = H / 2;
+  PLATFORM_R = Math.min(W, H) * 0.38;
+  PLAYER_R = Math.max(16, PLATFORM_R * 0.07);
+}
+
+resize();
+window.addEventListener('resize', () => { resize(); if (!gameRunning) drawStatic(); });
+
+class Player {
+  constructor(id, color, glowBase, startAngle, leftKey, rightKey, upKey) {
+    this.id = id;
+    this.color = color;
+    this.glowBase = glowBase;
+    this.leftKey = leftKey;
+    this.rightKey = rightKey;
+    this.upKey = upKey;
+    this.score = 0;
+    this.reset(startAngle);
+  }
+
+  reset(startAngle) {
+    const dist = PLATFORM_R * 0.5;
+    this.x = CX + Math.cos(startAngle) * dist;
+    this.y = CY + Math.sin(startAngle) * dist;
+    this.angle = startAngle + Math.PI; // face center
+    this.vx = 0;
+    this.vy = 0;
+    this.charge = 0;
+    this.charging = false;
+    this.onPlatform = true;
+    this.respawnTimer = 0;
+    this.lastPushedBy = null;
+    this.pushDecay = 0;
+    this.invincible = 0;
+  }
+
+  update(dt) {
+    if (this.respawnTimer > 0) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0) {
+        this.respawn();
+      }
+      return;
+    }
+
+    if (this.invincible > 0) this.invincible -= dt;
+
+    // Rotation
+    const rotSpeed = 3.5;
+    if (keys[this.leftKey]) this.angle -= rotSpeed * dt;
+    if (keys[this.rightKey]) this.angle += rotSpeed * dt;
+
+    // Charging
+    if (keys[this.upKey]) {
+      this.charging = true;
+      this.charge = Math.min(this.charge + dt * 1.8, 1.0);
+    } else if (this.charging) {
+      // Release!
+      const power = 300 + this.charge * 700;
+      this.vx += Math.cos(this.angle) * power;
+      this.vy += Math.sin(this.angle) * power;
+      this.charge = 0;
+      this.charging = false;
+    }
+
+    // Friction
+    const friction = this.charging ? 0.97 : 0.93;
+    this.vx *= Math.pow(friction, dt * 60);
+    this.vy *= Math.pow(friction, dt * 60);
+
+    // Move
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    // Push decay
+    if (this.pushDecay > 0) {
+      this.pushDecay -= dt;
+      if (this.pushDecay <= 0) this.lastPushedBy = null;
+    }
+
+    // Check if off platform
+    const dx = this.x - CX;
+    const dy = this.y - CY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > PLATFORM_R + PLAYER_R * 2) {
+      this.fellOff();
+    }
+  }
+
+  fellOff() {
+    this.score -= 1;
+    if (this.lastPushedBy && this.lastPushedBy !== this) {
+      this.lastPushedBy.score += 2;
+    }
+    this.onPlatform = false;
+    this.respawnTimer = 1.5;
+    this.vx = 0;
+    this.vy = 0;
+    updateScoreboard();
+  }
+
+  respawn() {
+    // Find a safe angle
+    const angles = [0, Math.PI * 2 / 3, Math.PI * 4 / 3];
+    const safeAngle = angles[this.id] + (Math.random() - 0.5) * 0.5;
+    const dist = PLATFORM_R * 0.35;
+    this.x = CX + Math.cos(safeAngle) * dist;
+    this.y = CY + Math.sin(safeAngle) * dist;
+    this.angle = safeAngle + Math.PI;
+    this.vx = 0;
+    this.vy = 0;
+    this.charge = 0;
+    this.charging = false;
+    this.onPlatform = true;
+    this.lastPushedBy = null;
+    this.pushDecay = 0;
+    this.invincible = 1.0;
+  }
+
+  draw() {
+    if (this.respawnTimer > 0) return;
+
+    const r = PLAYER_R;
+
+    // Charge glow
+    if (this.charge > 0) {
+      const glowR = r + r * this.charge * 2.5;
+      const grad = ctx.createRadialGradient(this.x, this.y, r, this.x, this.y, glowR);
+      grad.addColorStop(0, this.glowBase + (0.4 * this.charge) + ')');
+      grad.addColorStop(1, this.glowBase + '0)');
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    // Invincibility blink
+    if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) {
+      ctx.globalAlpha = 0.4;
+    }
+
+    // Body
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+
+    // Inner highlight
+    const ig = ctx.createRadialGradient(this.x - r * 0.3, this.y - r * 0.3, 0, this.x, this.y, r);
+    ig.addColorStop(0, 'rgba(255,255,255,0.3)');
+    ig.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = ig;
+    ctx.fill();
+
+    // Direction indicator (nose)
+    const noseLen = r * 1.6;
+    const noseX = this.x + Math.cos(this.angle) * noseLen;
+    const noseY = this.y + Math.sin(this.angle) * noseLen;
+    ctx.beginPath();
+    ctx.moveTo(
+      this.x + Math.cos(this.angle + 0.5) * r,
+      this.y + Math.sin(this.angle + 0.5) * r
+    );
+    ctx.lineTo(noseX, noseY);
+    ctx.lineTo(
+      this.x + Math.cos(this.angle - 0.5) * r,
+      this.y + Math.sin(this.angle - 0.5) * r
+    );
+    ctx.fillStyle = this.color;
+    ctx.fill();
+
+    // Charge bar
+    if (this.charging && this.charge > 0) {
+      const barW = r * 3;
+      const barH = 4;
+      const bx = this.x - barW / 2;
+      const by = this.y - r - 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
+      ctx.fillStyle = this.color;
+      ctx.fillRect(bx, by, barW * this.charge, barH);
+    }
+
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.fillStyle = '#000';
+    ctx.font = `bold ${Math.round(r * 0.85)}px 'DM Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('P' + (this.id + 1), this.x, this.y + 1);
+  }
+}
+
+let players = [];
+let particles = [];
+
+function createPlayers() {
+  players = [
+    new Player(0, COLORS.p1, COLORS.p1g, -Math.PI / 2, 'a', 'd', 'w'),
+    new Player(1, COLORS.p2, COLORS.p2g, -Math.PI / 2 + Math.PI * 2 / 3, 'arrowleft', 'arrowright', 'arrowup'),
+    new Player(2, COLORS.p3, COLORS.p3g, -Math.PI / 2 + Math.PI * 4 / 3, 'j', 'l', 'i')
+  ];
+}
+
+function checkCollisions() {
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const a = players[i];
+      const b = players[j];
+      if (a.respawnTimer > 0 || b.respawnTimer > 0) continue;
+      if (a.invincible > 0 || b.invincible > 0) continue;
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = PLAYER_R * 2;
+
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+
+        // Separate
+        const overlap = (minDist - dist) / 2;
+        a.x -= nx * overlap;
+        a.y -= ny * overlap;
+        b.x += nx * overlap;
+        b.y += ny * overlap;
+
+        // Relative velocity
+        const dvx = a.vx - b.vx;
+        const dvy = a.vy - b.vy;
+        const dvn = dvx * nx + dvy * ny;
+
+        if (dvn > 0) {
+          const restitution = 1.2;
+          a.vx -= restitution * dvn * nx;
+          a.vy -= restitution * dvn * ny;
+          b.vx += restitution * dvn * nx;
+          b.vy += restitution * dvn * ny;
+
+          // Track who pushed whom
+          const aSpeed = Math.sqrt(a.vx * a.vx + a.vy * a.vy);
+          const bSpeed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+
+          if (aSpeed > bSpeed) {
+            b.lastPushedBy = a;
+            b.pushDecay = 2.0;
+          } else {
+            a.lastPushedBy = b;
+            a.pushDecay = 2.0;
+          }
+
+          // Collision particles
+          const cx = (a.x + b.x) / 2;
+          const cy = (a.y + b.y) / 2;
+          for (let k = 0; k < 8; k++) {
+            const ang = Math.random() * Math.PI * 2;
+            const spd = 50 + Math.random() * 150;
+            particles.push({
+              x: cx, y: cy,
+              vx: Math.cos(ang) * spd,
+              vy: Math.sin(ang) * spd,
+              life: 0.4 + Math.random() * 0.3,
+              maxLife: 0.4 + Math.random() * 0.3,
+              color: Math.random() > 0.5 ? a.color : b.color,
+              r: 2 + Math.random() * 3
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.95;
+    p.vy *= 0.95;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPlatform() {
+  // Shadow
+  const shadowGrad = ctx.createRadialGradient(CX, CY + 10, PLATFORM_R * 0.8, CX, CY + 10, PLATFORM_R * 1.15);
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
+  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(CX, CY + 10, PLATFORM_R * 1.15, 0, Math.PI * 2);
+  ctx.fillStyle = shadowGrad;
+  ctx.fill();
+
+  // Main platform
+  const pGrad = ctx.createRadialGradient(CX - PLATFORM_R * 0.2, CY - PLATFORM_R * 0.2, 0, CX, CY, PLATFORM_R);
+  pGrad.addColorStop(0, '#3d2d35');
+  pGrad.addColorStop(0.7, '#2a1f25');
+  pGrad.addColorStop(1, '#1f1419');
+  ctx.beginPath();
+  ctx.arc(CX, CY, PLATFORM_R, 0, Math.PI * 2);
+  ctx.fillStyle = pGrad;
+  ctx.fill();
+
+  // Ring pattern
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let r = PLATFORM_R * 0.25; r < PLATFORM_R; r += PLATFORM_R * 0.15) {
+    ctx.beginPath();
+    ctx.arc(CX, CY, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(CX, CY, PLATFORM_R * 0.08, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(232, 68, 58, 0.15)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(232, 68, 58, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Edge ring
+  ctx.beginPath();
+  ctx.arc(CX, CY, PLATFORM_R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#e8443a';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Edge glow
+  ctx.beginPath();
+  ctx.arc(CX, CY, PLATFORM_R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(232, 68, 58, 0.2)';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+}
+
+function updateScoreboard() {
+  document.getElementById('score1').textContent = players[0].score;
+  document.getElementById('score2').textContent = players[1].score;
+  document.getElementById('score3').textContent = players[2].score;
+}
+
+let lastTime = 0;
+
+function gameLoop(time) {
+  if (!gameRunning) return;
+  const dt = Math.min((time - lastTime) / 1000, 1/30);
+  lastTime = time;
+
+  ctx.clearRect(0, 0, W, H);
+
+  drawPlatform();
+
+  for (const p of players) p.update(dt);
+  checkCollisions();
+  updateParticles(dt);
+
+  drawParticles();
+  for (const p of players) p.draw();
+
+  updateScoreboard();
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function drawStatic() {
+  ctx.clearRect(0, 0, W, H);
+  drawPlatform();
+}
+
+function startGame() {
+  resize();
+  createPlayers();
+  particles = [];
+  roundTime = 30;
+  timerEl.textContent = '30';
+  timerEl.classList.remove('warning');
+  overlay.classList.add('hidden');
+  resultsDiv.style.display = 'none';
+  gameRunning = true;
+  lastTime = performance.now();
+  updateScoreboard();
+
+  timerInterval = setInterval(() => {
+    roundTime--;
+    timerEl.textContent = roundTime;
+    if (roundTime <= 10) timerEl.classList.add('warning');
+    if (roundTime <= 0) endGame();
+  }, 1000);
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  gameRunning = false;
+  clearInterval(timerInterval);
+  cancelAnimationFrame(animFrame);
+
+  overlay.classList.remove('hidden');
+  document.querySelector('.overlay-title').textContent = 'ROUND OVER';
+  document.querySelector('.overlay-sub').textContent = 'FINAL SCORES';
+  startBtn.textContent = 'PLAY AGAIN';
+
+  const sorted = [...players].sort((a, b) => b.score - a.score);
+  resultsDiv.style.display = 'flex';
+  resultsDiv.innerHTML = '';
+
+  const medals = ['🥇', '🥈', '🥉'];
+  sorted.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'result-row' + (i === 0 ? ' winner' : '');
+    row.innerHTML = `
+      <span class="result-rank">${medals[i]}</span>
+      <span class="result-name" style="color:${p.color}">PLAYER ${p.id + 1}</span>
+      <span class="result-score" style="color:${p.color}">${p.score}</span>
+      ${i === 0 ? '<span class="crown">👑</span>' : ''}
+    `;
+    resultsDiv.appendChild(row);
+  });
+}
+
+// Input
+document.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  keys[key] = true;
+  if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d','i','j','k','l'].includes(key)) {
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+startBtn.addEventListener('click', startGame);
+
+drawStatic();
+</script>
+
+</body>
+</html>
